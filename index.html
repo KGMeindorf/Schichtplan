@@ -26,22 +26,37 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 15px; font-size: 14px; }
     header { display: flex; align-items: center; margin-bottom: 15px; }
-    header img { max-height: 60px; margin-right: 20px; }
     header div { font-size: 18px; font-weight: bold; }
     h2 { margin-top: 25px; margin-bottom: 10px; font-size: 16px; }
     table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
-    th, td { border: 1px solid #999; padding: 6px; text-align: center; }
-    th { background: #eee; }
-    input { width: 85%; }
-    button { margin-top: 8px; }
+    th, td { border: 1px solid #999; padding: 6px; text-align: center; vertical-align: middle; }
+    th { background: #eee; font-size: 13px; }
+    input { width: 85%; padding: 3px; margin-bottom: 2px; border-radius: 4px; border: 1px solid #ccc; font-size: 13px; }
+
+    /* Farben wie Original */
+    input.kasse { background-color: #ADD8e6; }
+    input.grill { background-color: #C0C0C0; }
+    input.imbiss { background-color: #F08080; }
+    input.theke { background-color: #FFD700; }
+    input.kuchen { background-color: #FFB6C1; }
+
+    .edit-btn {
+      display: none;
+      margin-left: 2px;
+      padding: 1px 4px;
+      font-size: 10px;
+      cursor: pointer;
+      background-color: #ccc;
+      border: none;
+      border-radius: 3px;
+    }
   </style>
 </head>
 <body>
 
 <header>
-  <img id="logo" src="logo.png" alt="Fest Logo">
   <div>
-    <h1>Schichtplan</h1>
+    <h1>Schichtplan für das Pfingstfest</h1>
     <div id="orgName"></div>
     <div id="eventDetails"></div>
   </div>
@@ -50,7 +65,8 @@
 <div id="config">
   <input type="text" id="orgNameInput" placeholder="Verein">
   <input type="text" id="eventDetailsInput" placeholder="Details">
-  <button onclick="saveConfig()">Speichern</button>
+  <button onclick="saveConfig()">Übernehmen</button>
+  <button onclick="resetPlan()">Zurücksetzen</button>
 </div>
 
 <script>
@@ -58,29 +74,33 @@ const CHANGE_PASSWORD = "ändern";
 const RESET_PASSWORD = "reset";
 
 const plan = {
-  Samstag: { date: "23. Mai 2025", times: ["14:00–18:00","18:00–22:00"] },
-  Sonntag: { date: "24. Mai 2025", times: ["10:00–14:00","14:00–18:00"] }
+  Samstag: { date: "23. Mai 2025", times: ["14:00–18:00","18:00–22:00","22:00–00:00"] },
+  Sonntag: { date: "24. Mai 2025", times: ["10:00–14:00","14:00–18:00","18:00–22:00","22:00–00:00"] },
+  Montag: { date: "25. Mai 2025", times: ["10:00–14:00","14:00–18:00","18:00–22:00","22:00–00:00"] }
 };
 
 const tasks = [
   { name: "Kasse", count: 1 },
   { name: "Grill", count: 1 },
-  { name: "Theke", count: 2 }
+  { name: "Imbiss", count: 3 },
+  { name: "Theke", count: 4 },
+  { name: "Kuchen", count: 3, days: ["Sonntag","Montag"], times: ["10:00–14:00","14:00–18:00"] }
 ];
 
 function saveConfig() {
-  const org = document.getElementById("orgNameInput").value;
+  const orgName = document.getElementById("orgNameInput").value;
   const details = document.getElementById("eventDetailsInput").value;
-
-  db.ref("config").set({ org, details });
+  db.ref("config").set({ orgName, details });
 }
 
 // LIVE CONFIG
  db.ref("config").on("value", snap => {
   if (snap.exists()) {
     const data = snap.val();
-    document.getElementById("orgName").textContent = data.org || "";
+    document.getElementById("orgName").textContent = data.orgName || "";
     document.getElementById("eventDetails").textContent = data.details || "";
+    document.getElementById("orgNameInput").value = data.orgName || "";
+    document.getElementById("eventDetailsInput").value = data.details || "";
   }
 });
 
@@ -93,6 +113,26 @@ function createTable(day, info) {
 
   const table = document.createElement("table");
 
+  // HEADER (war dir wichtig!)
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+
+  const thTime = document.createElement("th");
+  thTime.textContent = "Uhrzeit";
+  headerRow.appendChild(thTime);
+
+  tasks.forEach(task => {
+    if (task.days && !task.days.includes(day)) return;
+    const th = document.createElement("th");
+    th.textContent = task.name;
+    headerRow.appendChild(th);
+  });
+
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+
   info.times.forEach(time => {
     const tr = document.createElement("tr");
 
@@ -101,48 +141,73 @@ function createTable(day, info) {
     tr.appendChild(tdTime);
 
     tasks.forEach(task => {
+      if (task.days && !task.days.includes(day)) return;
+      if (task.times && !task.times.includes(time)) return;
+
       const td = document.createElement("td");
 
-      for (let i=0;i<task.count;i++) {
+      for (let i = 0; i < task.count; i++) {
         const input = document.createElement("input");
+        input.classList.add(task.name.toLowerCase());
+
         const key = `${day}_${time}_${task.name}_${i}`;
 
-        // LIVE LADEN
-        db.ref("plan/"+key).on("value", snap => {
-          if (snap.exists()) {
-            input.value = snap.val();
+        const editBtn = document.createElement("button");
+        editBtn.textContent = "Ä";
+        editBtn.classList.add("edit-btn");
+
+        db.ref("plan/" + key).on("value", snap => {
+          const val = snap.val();
+          if (val) {
+            input.value = val;
             input.disabled = true;
+            editBtn.style.display = "inline-block";
+          } else {
+            input.value = "";
+            input.disabled = false;
+            editBtn.style.display = "none";
           }
         });
 
-        const btn = document.createElement("button");
-        btn.textContent = "Ä";
-
-        btn.onclick = () => {
-          const pw = prompt("Passwort:");
+        editBtn.onclick = () => {
+          const pw = prompt("Passwort eingeben:");
           if (pw === CHANGE_PASSWORD) {
             input.disabled = false;
+            input.focus();
+          } else {
+            alert("Falsches Passwort");
           }
         };
 
         input.addEventListener("change", () => {
-          db.ref("plan/"+key).set(input.value);
-          input.disabled = true;
+          db.ref("plan/" + key).set(input.value);
         });
 
         td.appendChild(input);
-        td.appendChild(btn);
-        td.appendChild(document.createElement("br"));
+        td.appendChild(editBtn);
+        if (i < task.count - 1) td.appendChild(document.createElement("br"));
       }
 
       tr.appendChild(td);
     });
 
-    table.appendChild(tr);
+    tbody.appendChild(tr);
   });
 
+  table.appendChild(tbody);
   container.appendChild(table);
   document.body.appendChild(container);
+}
+
+function resetPlan() {
+  const pw = prompt("Passwort zum Zurücksetzen:");
+  if (pw === RESET_PASSWORD) {
+    if (confirm("Alle Einträge wirklich löschen?")) {
+      db.ref("plan").remove();
+    }
+  } else {
+    alert("Falsches Passwort");
+  }
 }
 
 for (const day in plan) {
@@ -152,3 +217,4 @@ for (const day in plan) {
 
 </body>
 </html>
+
