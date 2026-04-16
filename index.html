@@ -9,7 +9,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <script>
-    // 🔧 HIER DEINE FIREBASE DATEN EINTRAGEN
     const firebaseConfig = {
       apiKey: "AIzaSyBclkgfTQR9ap_HH_k3u9LSL4INDYwyHYY",
       authDomain: "kg-schichtplan.firebaseapp.com",
@@ -26,66 +25,129 @@
 
   <style>
     body { font-family: Arial, sans-serif; margin: 15px; font-size: 14px; }
-    table { border-collapse: collapse; width: 100%; }
+    header { display: flex; align-items: center; margin-bottom: 15px; }
+    header img { max-height: 60px; margin-right: 20px; }
+    header div { font-size: 18px; font-weight: bold; }
+    h2 { margin-top: 25px; margin-bottom: 10px; font-size: 16px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
     th, td { border: 1px solid #999; padding: 6px; text-align: center; }
-    input { width: 90%; }
+    th { background: #eee; }
+    input { width: 85%; }
+    button { margin-top: 8px; }
   </style>
 </head>
 <body>
 
-<h1>Schichtplan</h1>
-<div id="app"></div>
+<header>
+  <img id="logo" src="logo.png" alt="Fest Logo">
+  <div>
+    <h1>Schichtplan</h1>
+    <div id="orgName"></div>
+    <div id="eventDetails"></div>
+  </div>
+</header>
+
+<div id="config">
+  <input type="text" id="orgNameInput" placeholder="Verein">
+  <input type="text" id="eventDetailsInput" placeholder="Details">
+  <button onclick="saveConfig()">Speichern</button>
+</div>
 
 <script>
+const CHANGE_PASSWORD = "ändern";
+const RESET_PASSWORD = "reset";
+
 const plan = {
-  Samstag: ["14-18", "18-22"],
-  Sonntag: ["10-14", "14-18"]
+  Samstag: { date: "23. Mai 2025", times: ["14:00–18:00","18:00–22:00"] },
+  Sonntag: { date: "24. Mai 2025", times: ["10:00–14:00","14:00–18:00"] }
 };
 
-function createTable() {
-  const app = document.getElementById("app");
+const tasks = [
+  { name: "Kasse", count: 1 },
+  { name: "Grill", count: 1 },
+  { name: "Theke", count: 2 }
+];
 
-  for (const day in plan) {
-    const h2 = document.createElement("h2");
-    h2.textContent = day;
-    app.appendChild(h2);
+function saveConfig() {
+  const org = document.getElementById("orgNameInput").value;
+  const details = document.getElementById("eventDetailsInput").value;
 
-    const table = document.createElement("table");
-
-    plan[day].forEach(time => {
-      const tr = document.createElement("tr");
-
-      const tdTime = document.createElement("td");
-      tdTime.textContent = time;
-      tr.appendChild(tdTime);
-
-      const input = document.createElement("input");
-      const key = day + "_" + time;
-
-      // 🔄 LIVE DATEN LADEN
-      db.ref("plan/" + key).on("value", snap => {
-        if (snap.exists()) {
-          input.value = snap.val();
-        }
-      });
-
-      // 💾 SPEICHERN
-      input.addEventListener("change", () => {
-        db.ref("plan/" + key).set(input.value);
-      });
-
-      const td = document.createElement("td");
-      td.appendChild(input);
-      tr.appendChild(td);
-
-      table.appendChild(tr);
-    });
-
-    app.appendChild(table);
-  }
+  db.ref("config").set({ org, details });
 }
 
-createTable();
+// LIVE CONFIG
+ db.ref("config").on("value", snap => {
+  if (snap.exists()) {
+    const data = snap.val();
+    document.getElementById("orgName").textContent = data.org || "";
+    document.getElementById("eventDetails").textContent = data.details || "";
+  }
+});
+
+function createTable(day, info) {
+  const container = document.createElement("div");
+
+  const h2 = document.createElement("h2");
+  h2.textContent = `${day} (${info.date})`;
+  container.appendChild(h2);
+
+  const table = document.createElement("table");
+
+  info.times.forEach(time => {
+    const tr = document.createElement("tr");
+
+    const tdTime = document.createElement("td");
+    tdTime.textContent = time;
+    tr.appendChild(tdTime);
+
+    tasks.forEach(task => {
+      const td = document.createElement("td");
+
+      for (let i=0;i<task.count;i++) {
+        const input = document.createElement("input");
+        const key = `${day}_${time}_${task.name}_${i}`;
+
+        // LIVE LADEN
+        db.ref("plan/"+key).on("value", snap => {
+          if (snap.exists()) {
+            input.value = snap.val();
+            input.disabled = true;
+          }
+        });
+
+        const btn = document.createElement("button");
+        btn.textContent = "Ä";
+
+        btn.onclick = () => {
+          const pw = prompt("Passwort:");
+          if (pw === CHANGE_PASSWORD) {
+            input.disabled = false;
+          }
+        };
+
+        input.addEventListener("change", () => {
+          db.ref("plan/"+key).set(input.value);
+          input.disabled = true;
+        });
+
+        td.appendChild(input);
+        td.appendChild(btn);
+        td.appendChild(document.createElement("br"));
+      }
+
+      tr.appendChild(td);
+    });
+
+    table.appendChild(tr);
+  });
+
+  container.appendChild(table);
+  document.body.appendChild(container);
+}
+
+for (const day in plan) {
+  createTable(day, plan[day]);
+}
 </script>
 
 </body>
