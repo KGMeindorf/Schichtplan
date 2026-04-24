@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Schichtplan Fest</title>
 
-  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
@@ -33,7 +32,6 @@
     th { background: #eee; font-size: 13px; }
     input { width: 85%; padding: 3px; margin-bottom: 2px; border-radius: 4px; border: 1px solid #ccc; font-size: 13px; }
 
-    /* Farben wie Original */
     input.kasse { background-color: #ADD8e6; }
     input.grill { background-color: #C0C0C0; }
     input.imbiss { background-color: #F08080; }
@@ -49,6 +47,14 @@
       background-color: #ccc;
       border: none;
       border-radius: 3px;
+    }
+    
+    /* Kleiner Style für den Zeithinweis */
+    .time-hint {
+      font-size: 11px;
+      font-weight: bold;
+      display: block;
+      margin-bottom: 4px;
     }
   </style>
 </head>
@@ -74,17 +80,17 @@ const CHANGE_PASSWORD = "ändern";
 const RESET_PASSWORD = "reset";
 
 const plan = {
-  Samstag: { date: "23. Mai 2026", times: ["14:00–18:00","18:00–00:00"] },
-  Sonntag: { date: "24. Mai 2026", times: ["10:00–14:00","14:00–18:00","18:00-00:00"] },
-  Montag: { date: "25. Mai 2026", times: ["10:00–14:00","14:00–18:00"] }
+  Samstag: { date: "23. Mai 2025", times: ["14:00–18:00","18:00–22:00","22:00–00:00"] },
+  Sonntag: { date: "24. Mai 2025", times: ["10:00–14:00","14:00–18:00","18:00–22:00","22:00–00:00"] },
+  Montag: { date: "25. Mai 2025", times: ["10:00–14:00","14:00–18:00","18:00–22:00","22:00–00:00"] }
 };
 
 const tasks = [
   { name: "Kasse", count: 1 },
   { name: "Grill", count: 1 },
-  { name: "Imbiss", count: 3 },
+  { name: "Imbiss", count: 4 },
   { name: "Theke", count: 4 },
-  { name: "Kuchen", count: 3, days: ["Sonntag","Montag"], times: ["10:00–14:00","14:00–18:00"] }
+  { name: "Kuchen", count: 4, days: ["Sonntag","Montag"], times: ["10:00–14:00"] }
 ];
 
 function saveConfig() {
@@ -93,8 +99,7 @@ function saveConfig() {
   db.ref("config").set({ orgName, details });
 }
 
-// LIVE CONFIG
- db.ref("config").on("value", snap => {
+db.ref("config").on("value", snap => {
   if (snap.exists()) {
     const data = snap.val();
     document.getElementById("orgName").textContent = data.orgName || "";
@@ -106,14 +111,11 @@ function saveConfig() {
 
 function createTable(day, info) {
   const container = document.createElement("div");
-
   const h2 = document.createElement("h2");
   h2.textContent = `${day} (${info.date})`;
   container.appendChild(h2);
 
   const table = document.createElement("table");
-
-  // HEADER (war dir wichtig!)
   const thead = document.createElement("thead");
   const headerRow = document.createElement("tr");
 
@@ -135,7 +137,6 @@ function createTable(day, info) {
 
   info.times.forEach(time => {
     const tr = document.createElement("tr");
-
     const tdTime = document.createElement("td");
     tdTime.textContent = time;
     tr.appendChild(tdTime);
@@ -146,10 +147,17 @@ function createTable(day, info) {
 
       const td = document.createElement("td");
 
+      // NEU: Hier wird der Hinweis eingefügt, wenn die Aufgabe "Kuchen" ist
+      if (task.name === "Kuchen") {
+        const hint = document.createElement("span");
+        hint.classList.add("time-hint");
+        hint.textContent = "12:00–16:00 Uhr";
+        td.appendChild(hint);
+      }
+
       for (let i = 0; i < task.count; i++) {
         const input = document.createElement("input");
         input.classList.add(task.name.toLowerCase());
-
         const key = `${day}_${time}_${task.name}_${i}`;
 
         const editBtn = document.createElement("button");
@@ -187,10 +195,8 @@ function createTable(day, info) {
         td.appendChild(editBtn);
         if (i < task.count - 1) td.appendChild(document.createElement("br"));
       }
-
       tr.appendChild(td);
     });
-
     tbody.appendChild(tr);
   });
 
@@ -217,4 +223,3 @@ for (const day in plan) {
 
 </body>
 </html>
-
